@@ -1,0 +1,659 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="1.0.0"
+
+MODEL_DIR="$HOME/Downloads/steady-hypnosis/piper-clean-test"
+MODEL="$MODEL_DIR/alan.onnx"
+CONFIG="$MODEL_DIR/alan.onnx.json"
+
+LENGTH_SCALE="1.52"
+VOICE_GAIN="-10"
+
+BODY_HZ="180"
+BODY_VOL="0.30"
+
+ALPHA_LEFT="180"
+ALPHA_RIGHT="190"
+ALPHA_VOL="0.09"
+
+PINK_VOL="0.055"
+
+usage() {
+cat <<EOF
+
+RICHMACK AUDIO CLI v$VERSION
+
+Usage:
+  richmack-audio INPUT.txt
+  richmack-audio INPUT.txt OUTPUT.wav
+
+Options:
+  --fast          Faster narration
+  --slow          Slower narration
+  --no-pink       Disable pink noise
+  --no-alpha      Disable stereo alpha pair
+  --no-body       Disable 180 Hz body tone
+  --voice-only    Narration only
+  --preview       Render/play first 10 sentences only
+  --help          Show this help
+
+Default pipeline:
+
+  Piper Alan British voice
+  Sentence-by-sentence rendering
+  1.52 speech length scale
+  Safe pre-filter headroom
+  48 kHz stereo
+  180 Hz body tone
+  180 Hz LEFT / 190 Hz RIGHT
+  10 Hz stereo difference
+  Pink noise
+  15-second opening bed
+  20-second ending bed
+  24-bit WAV
+
+Example:
+
+  richmack-audio affirmations.txt
+
+EOF
+}
+
+[[ $# -eq 0 ]] && { usage; exit 1; }
+
+INPUT=""
+OUTPUT=""
+PREVIEW=0
+BODY=1
+ALPHA=1
+PINK=1
+VOICE_ONLY=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+
+        --fast)
+            LENGTH_SCALE="1.30"
+            shift
+            ;;
+
+        --slow)
+            LENGTH_SCALE="1.70"
+            shift
+            ;;
+
+        --no-pink)
+            PINK=0
+            shift
+            ;;
+
+        --no-alpha)
+            ALPHA=0
+            shift
+            ;;
+
+        --no-body)
+            BODY=0
+            shift
+            ;;
+
+        --voice-only)
+            VOICE_ONLY=1
+            shift
+            ;;
+
+        --preview)
+            PREVIEW=1
+            shift
+            ;;
+
+        --help|-h)
+            usage
+            exit 0
+            ;;
+
+        -*)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+
+        *)
+            if [[ -z "$INPUT" ]]; then
+                INPUT="$1"
+            elif [[ -z "$OUTPUT" ]]; then
+                OUTPUT="$1"
+            else
+                echo "Too many arguments."
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+[[ -n "$INPUT" ]] || {
+    echo "ERROR: No input file."
+    exit 1
+}
+
+[[ -f "$INPUT" ]] || {
+    echo "ERROR: Cannot find: $INPUT"
+    exit 1
+}
+
+[[ -s "$MODEL" ]] || {
+    echo "ERROR: Missing model:"
+    echo "$MODEL"
+    exit 1
+}
+
+[[ -s "$CONFIG" ]] || {
+    echo "ERROR: Missing config:"
+    echo "$CONFIG"
+    exit 1
+}
+
+command -v piper >/dev/null || {
+    echo "ERROR: Piper not installed."
+    exit 1
+}
+
+command -v sox >/dev/null || {
+    echo "ERROR: SoX not installed."
+    exit 1
+}
+
+command -v soxi >/dev/null || {
+    echo "ERROR: soxi not installed."
+    exit 1
+}
+
+BASE=$(basename "$INPUT")
+BASE="${BASE%.*}"
+
+if [[ -z "$OUTPUT" ]]; then
+    OUTPUT="${BASE}-RICHMACK.wav"
+fi
+
+WORK="$(pwd)/.${BASE}-richmack-build"
+
+rm -rf "$WORK"
+
+mkdir -p \
+    "$WORK/raw" \
+    "$WORK/processed" \
+    "$WORK/silence" \
+    "$WORK/batches"
+
+echo
+echo "========================================"
+echo "       RICHMACK AUDIO CLI v$VERSION"
+echo "========================================"
+echo
+echo "Input:  $INPUT"
+echo "Output: $OUTPUT"
+echo
+
+# ------------------------------------------------
+# SENTENCE SPLITTING
+# ------------------------------------------------
+
+python3 - "$INPUT" "$WORK/sentences.txt" "$PREVIEW" <<'PY'
+import sys
+import re
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+preview = int(sys.argv[3])
+
+text = src.read_text(
+    encoding="utf-8",
+    errors="replace"
+)
+
+sentences = []
+
+for paragraph in text.splitlines():
+
+    paragraph = paragraph.strip()
+
+    if not paragraph:
+        continue
+
+    parts = re.split(
+        r'(?<=[.!?])\s+',
+        paragraph
+    )
+
+    for part in parts:
+
+        part = part.strip()
+
+        if part:
+            sentences.append(part)
+
+if preview:
+    sentences = sentences[:10]
+
+if not sentences:
+    raise SystemExit("ERROR: No text found.")
+
+dst.write_text(
+    "\n".join(sentences) + "\n",
+    encoding="utf-8"
+)
+
+print(f"Sentences: {len(sentences)}")
+PY
+
+TOTAL_SENTENCES=$(
+    grep -cve '^[[:space:]]*$' \
+    "$WORK/sentences.txt"
+)
+
+# ------------------------------------------------
+# PIPER
+#
+# Run from model directory because this is the
+# configuration that proved reliable on this Mac.
+# ------------------------------------------------
+
+echo
+echo "=== PIPER NARRATION ==="
+
+ORIGINAL_DIR="$(pwd)"
+cd "$MODEL_DIR"
+
+n=0
+
+while IFS= read -r line; do
+
+    [[ -z "$line" ]] && continue
+
+    n=$((n+1))
+    NUM=$(printf "%04d" "$n")
+
+    echo "[$NUM/$TOTAL_SENTENCES] $line"
+
+    printf '%s\n' "$line" |
+    /opt/homebrew/bin/piper \
+        --model alan.onnx \
+        --config alan.onnx.json \
+        --length-scale "$LENGTH_SCALE" \
+        --sentence-silence 0 \
+        --output-file "$WORK/raw/${NUM}.wav"
+
+    [[ -s "$WORK/raw/${NUM}.wav" ]] || {
+        echo "ERROR: Piper failed at sentence $NUM"
+        exit 1
+    }
+
+    # IMPORTANT:
+    # gain occurs BEFORE filters.
+    # This prevents the clipping discovered during
+    # development of the original master.
+
+    sox \
+        "$WORK/raw/${NUM}.wav" \
+        "$WORK/processed/${NUM}.wav" \
+        gain "$VOICE_GAIN" \
+        rate -v 48000 \
+        channels 2 \
+        highpass 75 \
+        lowpass 10000
+
+    [[ -s "$WORK/processed/${NUM}.wav" ]] || {
+        echo "ERROR: SoX failed at sentence $NUM"
+        exit 1
+    }
+
+done < "$WORK/sentences.txt"
+
+cd "$ORIGINAL_DIR"
+
+# ------------------------------------------------
+# PACING
+# ------------------------------------------------
+
+echo
+echo "=== PACING ==="
+
+python3 - "$WORK" <<'PY'
+import sys
+import subprocess
+from pathlib import Path
+
+work = Path(sys.argv[1])
+
+sentences = [
+    x.strip()
+    for x in (work / "sentences.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    if x.strip()
+]
+
+manifest = []
+
+for i, sentence in enumerate(sentences, 1):
+
+    num = f"{i:04d}"
+
+    voice = work / "processed" / f"{num}.wav"
+
+    s = sentence.lower()
+
+    # Visualization language gets extra room.
+    if any(x in s for x in [
+        "imagine",
+        "visualize",
+        "picture",
+        "see yourself",
+        "see your family",
+        "notice",
+        "look around",
+        "feel yourself",
+        "remember",
+    ]):
+        pause = 3.5
+
+    # Breathing instructions.
+    elif any(x in s for x in [
+        "slow breath",
+        "deep breath",
+        "breathe in",
+        "breathe out",
+    ]):
+        pause = 3.0
+
+    # Affirmations.
+    elif s.startswith("i am "):
+        pause = 2.5
+
+    # Short anchor-like phrases.
+    elif len(sentence.split()) <= 4:
+        pause = 2.0
+
+    else:
+        pause = 1.35
+
+    silence = (
+        work /
+        "silence" /
+        f"{num}.wav"
+    )
+
+    subprocess.run([
+        "sox",
+        "-n",
+        "-r", "48000",
+        "-b", "16",
+        "-c", "2",
+        str(silence),
+        "trim", "0", str(pause)
+    ], check=True)
+
+    manifest.append(str(voice))
+    manifest.append(str(silence))
+
+(work / "manifest.txt").write_text(
+    "\n".join(manifest) + "\n"
+)
+PY
+
+# ------------------------------------------------
+# CONCATENATE
+# ------------------------------------------------
+
+echo
+echo "=== ASSEMBLING VOICE ==="
+
+python3 - "$WORK" <<'PY'
+import sys
+import subprocess
+from pathlib import Path
+
+work = Path(sys.argv[1])
+
+files = [
+    x.strip()
+    for x in (work / "manifest.txt")
+        .read_text()
+        .splitlines()
+    if x.strip()
+]
+
+batches = []
+
+SIZE = 40
+
+for start in range(0, len(files), SIZE):
+
+    group = files[start:start + SIZE]
+
+    out = (
+        work /
+        "batches" /
+        f"batch-{start//SIZE:04d}.wav"
+    )
+
+    subprocess.run(
+        ["sox", *group, str(out)],
+        check=True
+    )
+
+    batches.append(str(out))
+
+subprocess.run(
+    [
+        "sox",
+        *batches,
+        str(work / "voice.wav")
+    ],
+    check=True
+)
+PY
+
+VOICE_DURATION=$(
+    soxi -D "$WORK/voice.wav"
+)
+
+echo
+echo "Voice duration: $VOICE_DURATION seconds"
+
+# ------------------------------------------------
+# VOICE ONLY
+# ------------------------------------------------
+
+if [[ "$VOICE_ONLY" -eq 1 ]]; then
+
+    sox \
+        "$WORK/voice.wav" \
+        -b 24 \
+        "$OUTPUT"
+
+    echo
+    echo "COMPLETE:"
+    echo "$OUTPUT"
+
+    soxi "$OUTPUT"
+
+    exit 0
+fi
+
+# ------------------------------------------------
+# MASTER DURATION
+# ------------------------------------------------
+
+MASTER_DURATION=$(
+python3 - <<PY
+print(round(
+    float("$VOICE_DURATION") + 35.0,
+    3
+))
+PY
+)
+
+# ------------------------------------------------
+# POSITION VOICE
+# ------------------------------------------------
+
+sox \
+    "$WORK/voice.wav" \
+    "$WORK/voice-positioned.wav" \
+    pad 15 20
+
+LAYERS=()
+
+# ------------------------------------------------
+# BODY
+# ------------------------------------------------
+
+if [[ "$BODY" -eq 1 ]]; then
+
+    echo "=== 180 HZ BODY ==="
+
+    sox -n \
+        -r 48000 \
+        -b 24 \
+        -c 2 \
+        "$WORK/body.wav" \
+        synth "$MASTER_DURATION" \
+        sine "$BODY_HZ" \
+        vol "$BODY_VOL" \
+        fade t 8 "$MASTER_DURATION" 12
+
+    LAYERS+=(
+        "-v" "1.00"
+        "$WORK/body.wav"
+    )
+fi
+
+# ------------------------------------------------
+# ALPHA
+# ------------------------------------------------
+
+if [[ "$ALPHA" -eq 1 ]]; then
+
+    echo "=== 10 HZ ALPHA ==="
+
+    sox -n \
+        -r 48000 \
+        -b 24 \
+        -c 1 \
+        "$WORK/alpha-L.wav" \
+        synth "$MASTER_DURATION" \
+        sine "$ALPHA_LEFT" \
+        vol "$ALPHA_VOL" \
+        fade t 8 "$MASTER_DURATION" 12
+
+    sox -n \
+        -r 48000 \
+        -b 24 \
+        -c 1 \
+        "$WORK/alpha-R.wav" \
+        synth "$MASTER_DURATION" \
+        sine "$ALPHA_RIGHT" \
+        vol "$ALPHA_VOL" \
+        fade t 8 "$MASTER_DURATION" 12
+
+    sox -M \
+        "$WORK/alpha-L.wav" \
+        "$WORK/alpha-R.wav" \
+        "$WORK/alpha.wav"
+
+    LAYERS+=(
+        "-v" "0.75"
+        "$WORK/alpha.wav"
+    )
+fi
+
+# ------------------------------------------------
+# PINK
+# ------------------------------------------------
+
+if [[ "$PINK" -eq 1 ]]; then
+
+    echo "=== PINK NOISE ==="
+
+    sox -n \
+        -r 48000 \
+        -b 24 \
+        -c 2 \
+        "$WORK/pink.wav" \
+        synth "$MASTER_DURATION" \
+        pinknoise \
+        highpass 55 \
+        lowpass 12000 \
+        vol "$PINK_VOL" \
+        fade t 8 "$MASTER_DURATION" 12
+
+    LAYERS+=(
+        "-v" "0.65"
+        "$WORK/pink.wav"
+    )
+fi
+
+# ------------------------------------------------
+# BED
+# ------------------------------------------------
+
+echo
+echo "=== MIXING BED ==="
+
+if [[ ${#LAYERS[@]} -gt 0 ]]; then
+
+    sox -m \
+        "${LAYERS[@]}" \
+        "$WORK/bed.wav" \
+        gain -6
+
+else
+
+    sox -n \
+        -r 48000 \
+        -b 24 \
+        -c 2 \
+        "$WORK/bed.wav" \
+        trim 0 "$MASTER_DURATION"
+
+fi
+
+# ------------------------------------------------
+# MASTER
+# ------------------------------------------------
+
+echo
+echo "=== MASTERING ==="
+
+sox -m \
+    -v 1.00 "$WORK/bed.wav" \
+    -v 1.00 "$WORK/voice-positioned.wav" \
+    -b 24 \
+    "$OUTPUT" \
+    gain -3
+
+[[ -s "$OUTPUT" ]] || {
+    echo "ERROR: Master failed."
+    exit 1
+}
+
+echo
+echo "========================================"
+echo "              COMPLETE"
+echo "========================================"
+echo
+
+soxi "$OUTPUT"
+
+echo
+echo "File:"
+echo "$(pwd)/$OUTPUT"
+
+echo
+echo "Play:"
+echo "mpv --volume=60 \"$OUTPUT\""
+

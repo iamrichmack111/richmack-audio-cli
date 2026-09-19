@@ -1,0 +1,13 @@
+*.wav
+*.mp3
+*.flac
+*.aiff
+*.m4a
+*.onnx
+*.onnx.json
+richmack-build/
+piper-clean-test/
+.*-richmack-build/
+__pycache__/
+*.pyc
+.DS_Store
