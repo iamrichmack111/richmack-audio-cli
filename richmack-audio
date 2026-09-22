@@ -19,6 +19,10 @@ ALPHA_VOL="0.09"
 
 PINK_VOL="0.055"
 
+BEAT="none"
+BEAT_VOL="0.06"
+BEAT_DIR="$HOME/Downloads/steady-hypnosis/beats"
+
 usage() {
 cat <<EOF
 
@@ -36,6 +40,9 @@ Options:
   --no-body       Disable 180 Hz body tone
   --voice-only    Narration only
   --preview       Render/play first 10 sentences only
+  --beat NAME     Add looping music bed (example: stay-schemin)
+  --beat-volume N Music volume (default: 0.06)
+  --no-beat       Disable music
   --help          Show this help
 
 Default pipeline:
@@ -105,6 +112,29 @@ while [[ $# -gt 0 ]]; do
 
         --preview)
             PREVIEW=1
+            shift
+            ;;
+
+        --beat)
+            [[ $# -ge 2 ]] || {
+                echo "ERROR: --beat requires a name."
+                exit 1
+            }
+            BEAT="$2"
+            shift 2
+            ;;
+
+        --beat-volume)
+            [[ $# -ge 2 ]] || {
+                echo "ERROR: --beat-volume requires a number."
+                exit 1
+            }
+            BEAT_VOL="$2"
+            shift 2
+            ;;
+
+        --no-beat)
+            BEAT="none"
             shift
             ;;
 
@@ -594,6 +624,108 @@ if [[ "$PINK" -eq 1 ]]; then
     LAYERS+=(
         "-v" "0.65"
         "$WORK/pink.wav"
+    )
+fi
+
+# ------------------------------------------------
+# MUSIC BED
+#
+# MASTER_DURATION is derived from the COMPLETE
+# Piper narration plus:
+#
+#   15 second opening
+#   20 second ending
+#
+# The instrumental is repeated enough times to
+# exceed MASTER_DURATION and then trimmed exactly.
+# ------------------------------------------------
+
+if [[ "$BEAT" != "none" ]]; then
+
+    BEAT_FILE="$BEAT_DIR/$BEAT.wav"
+
+    [[ -s "$BEAT_FILE" ]] || {
+        echo "ERROR: Beat not found:"
+        echo "$BEAT_FILE"
+        exit 1
+    }
+
+    echo
+    echo "=== MUSIC BED ==="
+    echo "Beat: $BEAT"
+    echo "Volume: $BEAT_VOL"
+
+    # Convert the source beat to the same format as
+    # the rest of the master.
+    sox \
+        "$BEAT_FILE" \
+        -r 48000 \
+        -b 24 \
+        -c 2 \
+        "$WORK/beat-source.wav"
+
+    BEAT_DURATION=$(
+        soxi -D "$WORK/beat-source.wav"
+    )
+
+    echo "Beat duration:   $BEAT_DURATION seconds"
+    echo "Master duration: $MASTER_DURATION seconds"
+
+    # Calculate how many complete copies are needed.
+    REPEATS=$(
+    python3 - <<PY2
+import math
+
+master = float("$MASTER_DURATION")
+beat = float("$BEAT_DURATION")
+
+if beat <= 0:
+    raise SystemExit("Invalid beat duration")
+
+print(max(1, math.ceil(master / beat)))
+PY2
+    )
+
+    echo "Beat copies required: $REPEATS"
+
+    # Build a SoX concat command dynamically.
+    python3 - \
+        "$WORK/beat-source.wav" \
+        "$WORK/beat-loop.wav" \
+        "$REPEATS" <<'PY2'
+import subprocess
+import sys
+
+source = sys.argv[1]
+output = sys.argv[2]
+repeats = int(sys.argv[3])
+
+cmd = [
+    "sox",
+    *([source] * repeats),
+    output
+]
+
+subprocess.run(cmd, check=True)
+PY2
+
+    # Trim the repeated instrumental to EXACTLY the
+    # master duration. Fade the beginning and end.
+    sox \
+        "$WORK/beat-loop.wav" \
+        "$WORK/beat.wav" \
+        trim 0 "$MASTER_DURATION" \
+        fade t 5 "$MASTER_DURATION" 12
+
+    FINAL_BEAT_DURATION=$(
+        soxi -D "$WORK/beat.wav"
+    )
+
+    echo "Final beat duration: $FINAL_BEAT_DURATION seconds"
+
+    LAYERS+=(
+        "-v" "$BEAT_VOL"
+        "$WORK/beat.wav"
     )
 fi
 

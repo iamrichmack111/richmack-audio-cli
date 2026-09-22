@@ -1,0 +1,408 @@
+Listen.
+
+Repeat.
+
+Do not explain.
+
+Hear the action.
+
+See the command.
+
+Perform the command mentally.
+
+You inspect the directory.
+I inspect the directory.
+
+You run pwd.
+I run pwd.
+
+You verify where you are.
+I verify where I am.
+
+You run ls -la.
+I run ls -la.
+
+You inspect hidden files.
+I inspect hidden files.
+
+You run find.
+I run find.
+
+You find every regular file.
+I find every regular file.
+
+You run find dot dash type f.
+I run find dot dash type f.
+
+You find files larger than one hundred megabytes.
+I find files larger than one hundred megabytes.
+
+You run find dot dash type f dash size plus one hundred M.
+I run find dot dash type f dash size plus one hundred M.
+
+You find recently modified files.
+I find recently modified files.
+
+You run find dot dash type f dash mtime minus two.
+I run find dot dash type f dash mtime minus two.
+
+You measure disk usage.
+I measure disk usage.
+
+You run du dash s h dot.
+I run du dash s h dot.
+
+You find the largest files.
+I find the largest files.
+
+You run du dash a h dot pipe sort dash r h pipe head dash twenty.
+I run du dash a h dot pipe sort dash r h pipe head dash twenty.
+
+You inspect filesystem capacity.
+I inspect filesystem capacity.
+
+You run df dash h.
+I run df dash h.
+
+You inspect inode capacity.
+I inspect inode capacity.
+
+You run df dash i.
+I run df dash i.
+
+You inspect an inode.
+I inspect an inode.
+
+You run ls dash l i.
+I run ls dash l i.
+
+You inspect metadata.
+I inspect metadata.
+
+You run stat.
+I run stat.
+
+You locate an inode.
+I locate an inode.
+
+You run find dot dash inum one two three four five.
+I run find dot dash inum one two three four five.
+
+You extract fields with awk.
+I extract fields with awk.
+
+You run awk, print dollar one.
+I run awk, print dollar one.
+
+You define the delimiter.
+I define the delimiter.
+
+You run awk dash F colon, print dollar one.
+I run awk dash F colon, print dollar one.
+
+You filter by condition.
+I filter by condition.
+
+You run awk, dollar three greater than eighty, print dollar one and dollar three.
+I run awk, dollar three greater than eighty, print dollar one and dollar three.
+
+You accumulate values.
+I accumulate values.
+
+You run awk, sum plus equals dollar one, end, print sum.
+I run awk, sum plus equals dollar one, end, print sum.
+
+You transform a stream.
+I transform a stream.
+
+You run sed, substitute old with new globally.
+I run sed, substitute old with new globally.
+
+You select lines twenty through forty.
+I select lines twenty through forty.
+
+You run sed dash n, twenty comma forty p.
+I run sed dash n, twenty comma forty p.
+
+You remove comments.
+I remove comments.
+
+You run sed slash caret hash slash d.
+I run sed slash caret hash slash d.
+
+You search logs.
+I search logs.
+
+You run grep dash n error app dot log.
+I run grep dash n error app dot log.
+
+You search multiple patterns.
+I search multiple patterns.
+
+You run grep dash E, error pipe warn pipe fatal.
+I run grep dash E, error pipe warn pipe fatal.
+
+You count repeated events.
+I count repeated events.
+
+You run sort pipe uniq dash c pipe sort dash n r.
+I run sort pipe uniq dash c pipe sort dash n r.
+
+You inspect processes.
+I inspect processes.
+
+You run ps dash e f.
+I run ps dash e f.
+
+You locate the process.
+I locate the process.
+
+You run pgrep dash a f nginx.
+I run pgrep dash a f nginx.
+
+You request graceful termination.
+I request graceful termination.
+
+You run kill dash term process I D.
+I run kill dash term process I D.
+
+You inspect the exit status.
+I inspect the exit status.
+
+You run echo dollar question mark.
+I run echo dollar question mark.
+
+You redirect standard output.
+I redirect standard output.
+
+You run command greater than file.
+I run command greater than file.
+
+You append standard output.
+I append standard output.
+
+You run command double greater than file.
+I run command double greater than file.
+
+You redirect standard error.
+I redirect standard error.
+
+You run command two greater than error dot log.
+I run command two greater than error dot log.
+
+You connect commands with a pipe.
+I connect commands with a pipe.
+
+You make output become input.
+I make output become input.
+
+You execute the second command after success.
+I execute the second command after success.
+
+You use double ampersand.
+I use double ampersand.
+
+You execute the second command after failure.
+I execute the second command after failure.
+
+You use double pipe.
+I use double pipe.
+
+You inspect a POSIX environment.
+I inspect a POSIX environment.
+
+You run getconf PATH.
+I run getconf PATH.
+
+You inspect argument limits.
+I inspect argument limits.
+
+You run getconf ARG MAX.
+I run getconf ARG MAX.
+
+You test for a regular file.
+I test for a regular file.
+
+You run test dash f.
+I run test dash f.
+
+You test for a directory.
+I test for a directory.
+
+You run test dash d.
+I run test dash d.
+
+You test for an executable.
+I test for an executable.
+
+You run test dash x.
+I run test dash x.
+
+You inspect your identity.
+I inspect my identity.
+
+You run id.
+I run id.
+
+You inspect the current umask.
+I inspect the current umask.
+
+You run umask.
+I run umask.
+
+You inspect AWS identity.
+I inspect AWS identity.
+
+You run aws sts get caller identity.
+I run aws sts get caller identity.
+
+You verify the AWS region.
+I verify the AWS region.
+
+You run aws configure get region.
+I run aws configure get region.
+
+You list S3 buckets.
+I list S3 buckets.
+
+You run aws s3 ls.
+I run aws s3 ls.
+
+You inspect an S3 bucket.
+I inspect an S3 bucket.
+
+You run aws s3 ls s3 colon slash slash my bucket.
+I run aws s3 ls s3 colon slash slash my bucket.
+
+You upload an object.
+I upload an object.
+
+You run aws s3 cp file dot txt s3 colon slash slash my bucket slash file dot txt.
+I run aws s3 cp file dot txt s3 colon slash slash my bucket slash file dot txt.
+
+You synchronize a directory.
+I synchronize a directory.
+
+You run aws s3 sync dot slash site s3 colon slash slash my bucket slash site.
+I run aws s3 sync dot slash site s3 colon slash slash my bucket slash site.
+
+You inspect EC2.
+I inspect EC2.
+
+You run aws ec2 describe instances.
+I run aws ec2 describe instances.
+
+You inspect running instances.
+I inspect running instances.
+
+You run aws ec2 describe instances with the running state filter.
+I run aws ec2 describe instances with the running state filter.
+
+You query instance IDs.
+I query instance IDs.
+
+You run aws ec2 describe instances query Reservations Instances InstanceId.
+I run aws ec2 describe instances query Reservations Instances InstanceId.
+
+You inspect security groups.
+I inspect security groups.
+
+You run aws ec2 describe security groups.
+I run aws ec2 describe security groups.
+
+You inspect VPCs.
+I inspect VPCs.
+
+You run aws ec2 describe vpcs.
+I run aws ec2 describe vpcs.
+
+You inspect subnets.
+I inspect subnets.
+
+You run aws ec2 describe subnets.
+I run aws ec2 describe subnets.
+
+You inspect route tables.
+I inspect route tables.
+
+You run aws ec2 describe route tables.
+I run aws ec2 describe route tables.
+
+You inspect EBS volumes.
+I inspect EBS volumes.
+
+You run aws ec2 describe volumes.
+I run aws ec2 describe volumes.
+
+You inspect CloudWatch alarms.
+I inspect CloudWatch alarms.
+
+You run aws cloudwatch describe alarms.
+I run aws cloudwatch describe alarms.
+
+You inspect log groups.
+I inspect log groups.
+
+You run aws logs describe log groups.
+I run aws logs describe log groups.
+
+You observe.
+I observe.
+
+You measure.
+I measure.
+
+You filter.
+I filter.
+
+You transform.
+I transform.
+
+You verify.
+I verify.
+
+You do not guess.
+I do not guess.
+
+You inspect the evidence.
+I inspect the evidence.
+
+You predict the result.
+I predict the result.
+
+You execute deliberately.
+I execute deliberately.
+
+You read the output.
+I read the output.
+
+You respond to the system.
+I respond to the system.
+
+Again.
+
+You inspect.
+I inspect.
+
+You measure.
+I measure.
+
+You execute.
+I execute.
+
+You verify.
+I verify.
+
+Again.
+
+You know the command.
+I know the command.
+
+You know why you use it.
+I know why I use it.
+
+You see the system.
+I see the system.
+
+You operate the system.
+I operate the system.
